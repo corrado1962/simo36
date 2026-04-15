@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Via Simo 36 – Spese Condivise</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F0F4F8; color: #1a1a2e; min-height: 100vh; }
+
+  .topbar { background: #1E3A5F; color: #fff; padding: 0 1.5rem; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .topbar h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  .topbar p { font-size: 12px; color: #90CAF9; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; display: inline-block; margin-right: 6px; }
+  .sync-dot.off { background: #f44336; }
+  .sync-label { font-size: 12px; color: #90CAF9; }
+
+  .container { max-width: 1000px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.25rem; }
+  .kpi-grid-2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.25rem; }
+  .kpi { background: #fff; border-radius: 10px; padding: 1rem 1.25rem; border: 1px solid #e0e8f0; }
+  .kpi-label { font-size: 11px; color: #6B7A8D; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .kpi-value { font-size: 22px; font-weight: 700; }
+  .kpi.totale .kpi-value { color: #1E3A5F; }
+  .kpi.corrado .kpi-value { color: #1565C0; }
+  .kpi.elisabetta .kpi-value { color: #AD1457; }
+  .kpi.quota .kpi-value { color: #37474F; }
+  .kpi.saldo-c .kpi-value { color: #1B5E20; }
+  .kpi.saldo-e .kpi-value { color: #E65100; }
+
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.25rem; }
+  .tab { padding: 8px 20px; border-radius: 8px; border: 1px solid #CBD5E1; background: #fff; color: #6B7A8D; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .tab:hover { background: #F0F4F8; }
+  .tab.active { background: #1E3A5F; color: #fff; border-color: #1E3A5F; }
+
+  .card { background: #fff; border-radius: 12px; border: 1px solid #E0E8F0; margin-bottom: 1.25rem; overflow: hidden; }
+  .card-header { background: #1E3A5F; color: #fff; padding: 0.75rem 1.25rem; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+  .badge { background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px 10px; font-size: 11px; }
+
+  .form-row { display: grid; grid-template-columns: 140px 1fr 150px 130px 130px auto; gap: 10px; padding: 1rem 1.25rem; align-items: end; }
+  .fg label { font-size: 11px; color: #6B7A8D; font-weight: 600; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .fg input, .fg select { width: 100%; font-size: 13px; padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 8px; background: #fff; color: #1a1a2e; height: 38px; transition: border-color 0.15s; }
+  .fg input:focus, .fg select:focus { outline: none; border-color: #2E6DA4; box-shadow: 0 0 0 3px rgba(46,109,164,0.1); }
+  .btn-add { background: #1565C0; color: #fff; border: none; border-radius: 8px; padding: 0 20px; height: 38px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+  .btn-add:hover { background: #0D47A1; }
+  .btn-add:disabled { background: #90A4AE; cursor: not-allowed; }
+  .form-err { padding: 0 1.25rem 0.75rem; font-size: 12px; color: #C62828; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #1E3A5F; color: #fff; padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  thead th.num { text-align: right; }
+  tbody tr:nth-child(even) { background: #F0F7FF; }
+  tbody tr:nth-child(odd) { background: #fff; }
+  tbody tr:hover { background: #E3F0FB; }
+  td { padding: 9px 12px; border-bottom: 1px solid #EEF2F7; vertical-align: middle; }
+  .td-accent { width: 5px; padding: 0 !important; }
+  .td-cat { font-weight: 700; font-size: 11px; }
+  .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .td-c { color: #1565C0; font-weight: 600; }
+  .td-e { color: #AD1457; font-weight: 600; }
+  .td-tot { color: #1E3A5F; font-weight: 700; text-align: right; }
+  .btn-del { background: none; border: none; color: #EF5350; cursor: pointer; font-size: 16px; padding: 2px 8px; border-radius: 6px; line-height: 1; transition: background 0.15s; }
+  .btn-del:hover { background: #FFEBEE; }
+  .empty-row td { text-align: center; color: #90A4AE; padding: 2.5rem; font-size: 14px; }
+  .tot-row td { background: #1E3A5F; color: #fff; font-weight: 700; font-size: 13px; padding: 10px 12px; }
+  .tot-row .td-num { text-align: right; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; padding: 1.25rem; }
+  .cat-card { border-radius: 10px; padding: 0.875rem 1rem; border: 1px solid; }
+  .cat-name { font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+  .cat-row { display: flex; justify-content: space-between; font-size: 12px; color: #6B7A8D; margin-bottom: 4px; }
+  .cat-row span:last-child { font-weight: 600; color: #1a1a2e; }
+  .cat-divider { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 6px 0; }
+  .cat-total { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; }
+
+  .saldo-wrap { padding: 1.25rem; display: flex; flex-direction: column; gap: 10px; }
+  .saldo-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 10px; }
+  .saldo-label { font-size: 14px; font-weight: 500; }
+  .saldo-val { font-size: 18px; font-weight: 700; }
+  .saldo-nota { background: #FFFDE7; border: 1px solid #F9A825; border-radius: 10px; padding: 1rem 1.25rem; font-size: 12px; color: #5D4037; line-height: 1.7; margin: 0 1.25rem 1.25rem; }
+
+  .loading { text-align: center; padding: 2rem; color: #90A4AE; font-size: 14px; }
+
+  @media (max-width: 700px) {
+    .kpi-grid, .kpi-grid-2 { grid-template-columns: 1fr 1fr; }
+    .form-row { grid-template-columns: 1fr 1fr; }
+    .topbar h1 { font-size: 14px; }
+  }
+
+  .login-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:#F0F4F8; display:flex; align-items:center; justify-content:center; z-index:9999; }
+  .login-box { background:#fff; border-radius:16px; border:1px solid #E0E8F0; padding:2.5rem 2rem; width:340px; box-shadow:0 4px 24px rgba(30,58,95,0.12); }
+  .login-logo { background:#1E3A5F; color:#fff; border-radius:10px; padding:1rem; text-align:center; margin-bottom:1.5rem; }
+  .login-logo h2 { font-size:15px; font-weight:600; margin-bottom:2px; }
+  .login-logo p { font-size:11px; color:#90CAF9; }
+  .login-label { font-size:11px; color:#6B7A8D; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px; }
+  .login-input { width:100%; font-size:14px; padding:10px 12px; border:1px solid #CBD5E1; border-radius:8px; background:#fff; color:#1a1a2e; height:42px; margin-bottom:1rem; }
+  .login-input:focus { outline:none; border-color:#2E6DA4; box-shadow:0 0 0 3px rgba(46,109,164,0.1); }
+  .login-btn { width:100%; background:#1E3A5F; color:#fff; border:none; border-radius:8px; height:44px; font-size:14px; font-weight:600; cursor:pointer; transition:background 0.15s; }
+  .login-btn:hover { background:#2E6DA4; }
+  .login-err { color:#C62828; font-size:12px; text-align:center; margin-top:10px; min-height:18px; }
+  .login-hint { color:#90A4AE; font-size:11px; text-align:center; margin-top:12px; }
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo">
+      <h2>Via Simo 36</h2>
+      <p>Gestione spese condivise</p>
+    </div>
+    <label class="login-label">Password di accesso</label>
+    <input class="login-input" type="password" id="pwd-input" placeholder="Inserisci la password" onkeydown="if(event.key==='Enter')checkPwd()">
+    <button class="login-btn" onclick="checkPwd()">Accedi</button>
+    <div class="login-err" id="pwd-err"></div>
+    <div class="login-hint">Accesso riservato a Corrado ed Elisabetta</div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div>
+    <h1>Gestione spese – Via Simo 36, Roma</h1>
+    <p>Ripartizione 50% Corrado &nbsp;|&nbsp; 50% Elisabetta</p>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;">
+    <span class="sync-dot" id="sync-dot"></span>
+    <span class="sync-label" id="sync-label">Connessione...</span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="kpi-grid">
+    <div class="kpi totale"><div class="kpi-label">Totale speso</div><div class="kpi-value" id="k-tot">–</div></div>
+    <div class="kpi corrado"><div class="kpi-label">Spesa Corrado</div><div class="kpi-value" id="k-cor">–</div></div>
+    <div class="kpi elisabetta"><div class="kpi-label">Spesa Elisabetta</div><div class="kpi-value" id="k-eli">–</div></div>
+  </div>
+  <div class="kpi-grid-2">
+    <div class="kpi quota"><div class="kpi-label">Quota 50%</div><div class="kpi-value" id="k-quo">–</div></div>
+    <div class="kpi saldo-c"><div class="kpi-label">Saldo Corrado</div><div class="kpi-value" id="k-sc">–</div></div>
+    <div class="kpi saldo-e"><div class="kpi-label">Saldo Elisabetta</div><div class="kpi-value" id="k-se">–</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('riepilogo')">Riepilogo</button>
+    <button class="tab" onclick="showTab('dettaglio')">Dettaglio categorie</button>
+    <button class="tab" onclick="showTab('saldo')">Saldo finale</button>
+  </div>
+
+  <div id="tab-riepilogo">
+    <div class="card">
+      <div class="card-header"><span>Aggiungi spesa</span></div>
+      <div class="form-row">
+        <div class="fg"><label>Data</label><input type="date" id="f-data"></div>
+        <div class="fg"><label>Descrizione</label><input type="text" id="f-desc" placeholder="es. Condominio Q2 2026"></div>
+        <div class="fg"><label>Categoria</label>
+          <select id="f-cat">
+            <option value="">– scegli –</option>
+            <option>Acquisto</option><option>Arredamento</option>
+            <option>Condono</option><option>Ristrutturazione</option><option>Utenze</option>
+          </select>
+        </div>
+        <div class="fg"><label>Corrado (€)</label><input type="number" id="f-cor" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="fg"><label>Elisabetta (€)</label><input type="number" id="f-eli" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="fg"><button class="btn-add" id="btn-add" onclick="addSpesa()">+ Aggiungi</button></div>
+      </div>
+      <div class="form-err" id="form-err"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span>Registro spese</span>
+        <span class="badge" id="count-badge">0 voci</span>
+      </div>
+      <div id="loading-msg" class="loading">Caricamento dati...</div>
+      <div class="table-wrap" id="table-wrap" style="display:none;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:5px;"></th>
+              <th>Data</th>
+              <th>Descrizione</th>
+              <th>Categoria</th>
+              <th class="num">Corrado</th>
+              <th class="num">Elisabetta</th>
+              <th class="num">Totale</th>
+              <th style="width:40px;"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-dettaglio" style="display:none;">
+    <div class="card">
+      <div class="card-header"><span>Riepilogo per categoria</span></div>
+      <div class="cat-grid" id="cat-grid"></div>
+    </div>
+  </div>
+
+  <div id="tab-saldo" style="display:none;">
+    <div class="card">
+      <div class="card-header"><span>Conguaglio finale</span></div>
+      <div class="saldo-wrap">
+        <div class="saldo-row" style="background:#1E3A5F;">
+          <span class="saldo-label" style="color:#fff;">Totale speso</span>
+          <span class="saldo-val" style="color:#fff;" id="s-tot">–</span>
+        </div>
+        <div class="saldo-row" style="background:#E3F2FD;">
+          <span class="saldo-label" style="color:#0D47A1;">Quota pro-capite (50%)</span>
+          <span class="saldo-val" style="color:#0D47A1;" id="s-quo">–</span>
+        </div>
+        <div class="saldo-row" style="background:#E3F2FD;">
+          <span class="saldo-label" style="color:#0D47A1;">Spesa Corrado</span>
+          <span class="saldo-val" style="color:#1565C0;" id="s-cor">–</span>
+        </div>
+        <div class="saldo-row" style="background:#FCE4EC;">
+          <span class="saldo-label" style="color:#880E4F;">Spesa Elisabetta</span>
+          <span class="saldo-val" style="color:#AD1457;" id="s-eli">–</span>
+        </div>
+        <div class="saldo-row" style="background:#E8F5E9;">
+          <span class="saldo-label" style="color:#1B5E20;">Saldo Corrado</span>
+          <span class="saldo-val" style="color:#1B5E20;" id="s-sc">–</span>
+        </div>
+        <div class="saldo-row" style="background:#FFF3E0;">
+          <span class="saldo-label" style="color:#BF360C;">Saldo Elisabetta</span>
+          <span class="saldo-val" style="color:#E65100;" id="s-se">–</span>
+        </div>
+      </div>
+      <div class="saldo-nota">
+        <strong>Come leggere il saldo:</strong><br>
+        Valore <strong>negativo</strong> = ha anticipato più della quota → deve ricevere il conguaglio.<br>
+        Valore <strong>positivo</strong> = ha anticipato meno della quota → deve versare il conguaglio.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pskhibkoezpmxmwghkfy.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBza2hpYmtvZXpwbXhtd2doa2Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNTE5MjQsImV4cCI6MjA5MTgyNzkyNH0.Y6yUww80bqoHs0_FgQ6MMX4Pcz1Fe9UFQHcgcuhKtG8';
+
+const CAT_CLR = {
+  'Acquisto':'#1565C0','Arredamento':'#00838F',
+  'Condono':'#6A1B9A','Ristrutturazione':'#558B2F','Utenze':'#E65100'
+};
+const CAT_BG = {
+  'Acquisto':'#E3F2FD','Arredamento':'#E0F7FA',
+  'Condono':'#F3E5F5','Ristrutturazione':'#F1F8E9','Utenze':'#FFF3E0'
+};
+const CATS = ['Acquisto','Arredamento','Condono','Ristrutturazione','Utenze'];
+
+const DATI_INIZIALI = [
+  {data:'2025-07-10',descrizione:'RG 36915/2024 competenze delegato',categoria:'Acquisto',corrado:860,elisabetta:0},
+  {data:'2025-07-10',descrizione:'RG 36915/2024 copia trascrizione decreto di trasferimento',categoria:'Acquisto',corrado:69.18,elisabetta:0},
+  {data:'2025-07-10',descrizione:'RG 36915/2024 trascrizione decreto e voltura Agenzia del Territorio',categoria:'Acquisto',corrado:149,elisabetta:0},
+  {data:'2025-07-10',descrizione:'Pratica 36915 lotto 001 – oneri tributari',categoria:'Acquisto',corrado:6500,elisabetta:0},
+  {data:'2025-07-10',descrizione:'Pratica 36915 lotto 001 – saldo prezzo',categoria:'Acquisto',corrado:265069.69,elisabetta:0},
+  {data:'2025-07-10',descrizione:'Pratica 36915 lotto 001 – oneri di cancellazione',categoria:'Acquisto',corrado:3500,elisabetta:0},
+  {data:'2025-07-10',descrizione:'Saldo oblazione statale condono PROT 86/129587/15',categoria:'Condono',corrado:1497.68,elisabetta:0},
+  {data:'2025-07-10',descrizione:'Saldo oblazione comunale condono PROT 86/129587/15',categoria:'Condono',corrado:4978.51,elisabetta:0},
+  {data:'2025-10-10',descrizione:'Giardinaggio – asportazione magnolia',categoria:'Ristrutturazione',corrado:500,elisabetta:0},
+  {data:'2025-12-23',descrizione:'Condominio 4° trimestre 2025',categoria:'Utenze',corrado:603,elisabetta:0},
+  {data:'2026-01-12',descrizione:'Sala Nistri',categoria:'Condono',corrado:220,elisabetta:0},
+  {data:'2026-01-14',descrizione:'Sgobba / Fabio LoBrutto – pratica condono',categoria:'Condono',corrado:1000,elisabetta:0},
+  {data:'2026-01-18',descrizione:'Priolo città del mobile – acconto cucina',categoria:'Arredamento',corrado:0,elisabetta:2000},
+  {data:'2026-02-02',descrizione:'Lo Brutto – pratica condono',categoria:'Condono',corrado:1000,elisabetta:0},
+  {data:'2026-03-08',descrizione:'Curto – acconto progettazione',categoria:'Ristrutturazione',corrado:1000,elisabetta:0},
+  {data:'2026-03-13',descrizione:'APE',categoria:'Utenze',corrado:150,elisabetta:0},
+  {data:'2026-04-03',descrizione:'Architetto Curto – 2° acconto cash',categoria:'Ristrutturazione',corrado:0,elisabetta:1000},
+  {data:'2026-04-03',descrizione:'Demolizioni – giornate 28/3 e 4/4 Angelo',categoria:'Ristrutturazione',corrado:0,elisabetta:1000},
+  {data:'2026-04-08',descrizione:'Acconto acquisto quota immobile Via Simo 36/38',categoria:'Acquisto',corrado:0,elisabetta:5000},
+  {data:'2026-04-08',descrizione:'Priolo città del mobile – ft 179 del 03/04/26',categoria:'Arredamento',corrado:7000,elisabetta:0},
+  {data:'2026-04-08',descrizione:'Condominio 1° trimestre 2026',categoria:'Utenze',corrado:579,elisabetta:0},
+  {data:'2026-04-13',descrizione:'Quadro elettrico cantiere',categoria:'Ristrutturazione',corrado:132.70,elisabetta:0},
+  {data:'2026-04-14',descrizione:'LED dependance',categoria:'Ristrutturazione',corrado:152.40,elisabetta:0},
+];
+
+let sb, spese = [];
+
+function eur(n) {
+  return new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'}).format(n||0);
+}
+function fmtData(d) {
+  if (!d) return '';
+  const [y,m,g] = d.split('-');
+  return `${g}/${m}/${y}`;
+}
+function setSync(ok) {
+  document.getElementById('sync-dot').className = 'sync-dot' + (ok ? '' : ' off');
+  document.getElementById('sync-label').textContent = ok ? 'Sincronizzato' : 'Offline';
+}
+
+async function init() {
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const {data, error} = await sb.from('spese').select('*').order('data');
+    if (error) throw error;
+
+    if (data.length === 0) {
+      const {error: e2} = await sb.from('spese').insert(DATI_INIZIALI);
+      if (e2) throw e2;
+      const {data: d2} = await sb.from('spese').select('*').order('data');
+      spese = d2 || [];
+    } else {
+      spese = data;
+    }
+    setSync(true);
+
+    sb.channel('spese-changes')
+      .on('postgres_changes', {event:'*', schema:'public', table:'spese'}, () => reload())
+      .subscribe();
+
+  } catch(e) {
+    console.error(e);
+    setSync(false);
+  }
+  render();
+  document.getElementById('loading-msg').style.display = 'none';
+  document.getElementById('table-wrap').style.display = '';
+}
+
+async function reload() {
+  try {
+    const {data} = await sb.from('spese').select('*').order('data');
+    spese = data || [];
+    setSync(true);
+  } catch(e) { setSync(false); }
+  render();
+}
+
+async function addSpesa() {
+  const data = document.getElementById('f-data').value;
+  const desc = document.getElementById('f-desc').value.trim();
+  const cat  = document.getElementById('f-cat').value;
+  const vc   = parseFloat(document.getElementById('f-cor').value) || 0;
+  const ve   = parseFloat(document.getElementById('f-eli').value) || 0;
+  const err  = document.getElementById('form-err');
+
+  if (!data)          { err.textContent = 'Inserisci la data.'; return; }
+  if (!desc)          { err.textContent = 'Inserisci la descrizione.'; return; }
+  if (!cat)           { err.textContent = 'Seleziona la categoria.'; return; }
+  if (!vc && !ve)     { err.textContent = 'Inserisci almeno un importo.'; return; }
+  if (vc > 0 && ve > 0) { err.textContent = 'Inserisci importo per uno solo (Corrado o Elisabetta).'; return; }
+  err.textContent = '';
+
+  const btn = document.getElementById('btn-add');
+  btn.disabled = true; btn.textContent = 'Salvataggio...';
+
+  try {
+    await sb.from('spese').insert({data, descrizione:desc, categoria:cat, corrado:vc, elisabetta:ve});
+    await reload();
+    document.getElementById('f-data').value='';
+    document.getElementById('f-desc').value='';
+    document.getElementById('f-cat').value='';
+    document.getElementById('f-cor').value='';
+    document.getElementById('f-eli').value='';
+  } catch(e) {
+    err.textContent = 'Errore salvataggio: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '+ Aggiungi';
+}
+
+async function delSpesa(id) {
+  if (!confirm('Eliminare questa spesa?')) return;
+  await sb.from('spese').delete().eq('id', id);
+  await reload();
+}
+
+function render() {
+  const totC = spese.reduce((s,r)=>s+(+r.corrado||0),0);
+  const totE = spese.reduce((s,r)=>s+(+r.elisabetta||0),0);
+  const tot  = totC + totE;
+  const quota = tot / 2;
+  const sC = quota - totC, sE = quota - totE;
+
+  document.getElementById('k-tot').textContent = eur(tot);
+  document.getElementById('k-cor').textContent = eur(totC);
+  document.getElementById('k-eli').textContent = eur(totE);
+  document.getElementById('k-quo').textContent = eur(quota);
+  document.getElementById('k-sc').textContent  = eur(sC);
+  document.getElementById('k-se').textContent  = eur(sE);
+  document.getElementById('s-tot').textContent = eur(tot);
+  document.getElementById('s-quo').textContent = eur(quota);
+  document.getElementById('s-cor').textContent = eur(totC);
+  document.getElementById('s-eli').textContent = eur(totE);
+  document.getElementById('s-sc').textContent  = eur(sC);
+  document.getElementById('s-se').textContent  = eur(sE);
+  document.getElementById('count-badge').textContent = spese.length + ' voci';
+
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  if (!spese.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nessuna spesa inserita.</td></tr>';
+  } else {
+    spese.forEach(r => {
+      const clr = CAT_CLR[r.categoria] || '#888';
+      const tr_tot = (+r.corrado||0)+(+r.elisabetta||0);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="td-accent" style="background:${clr};padding:0;"></td>
+        <td style="white-space:nowrap;font-size:12px;">${fmtData(r.data)}</td>
+        <td style="max-width:260px;font-size:12px;">${r.descrizione}</td>
+        <td class="td-cat" style="color:${clr};font-size:11px;">${r.categoria}</td>
+        <td class="td-num td-c">${r.corrado > 0 ? eur(r.corrado) : ''}</td>
+        <td class="td-num td-e">${r.elisabetta > 0 ? eur(r.elisabetta) : ''}</td>
+        <td class="td-tot">${eur(tr_tot)}</td>
+        <td style="text-align:center;"><button class="btn-del" onclick="delSpesa(${r.id})">&#x2715;</button></td>`;
+      tbody.appendChild(tr);
+    });
+    const tf = document.createElement('tr');
+    tf.className = 'tot-row';
+    tf.innerHTML = `<td></td><td colspan="3">TOTALE GENERALE</td>
+      <td class="td-num">${eur(totC)}</td>
+      <td class="td-num">${eur(totE)}</td>
+      <td class="td-num">${eur(tot)}</td><td></td>`;
+    tbody.appendChild(tf);
+  }
+
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = '';
+  CATS.forEach(cat => {
+    const rc = spese.filter(s=>s.categoria===cat).reduce((a,s)=>a+(+s.corrado||0),0);
+    const re = spese.filter(s=>s.categoria===cat).reduce((a,s)=>a+(+s.elisabetta||0),0);
+    const rt = rc + re;
+    const clr = CAT_CLR[cat], bg = CAT_BG[cat];
+    grid.innerHTML += `<div class="cat-card" style="background:${bg};border-color:${clr}40;">
+      <div class="cat-name" style="color:${clr};">${cat}</div>
+      <div class="cat-row"><span>Corrado</span><span style="color:#1565C0;">${eur(rc)}</span></div>
+      <div class="cat-row"><span>Elisabetta</span><span style="color:#AD1457;">${eur(re)}</span></div>
+      <hr class="cat-divider">
+      <div class="cat-total"><span style="color:${clr};">Totale</span><span style="color:${clr};">${eur(rt)}</span></div>
+    </div>`;
+  });
+}
+
+function showTab(t) {
+  ['riepilogo','dettaglio','saldo'].forEach(n => {
+    document.getElementById('tab-'+n).style.display = n===t ? '' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((b,i) => {
+    b.classList.toggle('active', ['riepilogo','dettaglio','saldo'][i]===t);
+  });
+}
+
+
+const PWD_HASH = 'Simo171224';
+
+function checkPwd() {
+  const val = document.getElementById('pwd-input').value;
+  if (val === PWD_HASH) {
+    document.getElementById('login-overlay').style.display = 'none';
+    sessionStorage.setItem('simo_auth', '1');
+    init();
+  } else {
+    const err = document.getElementById('pwd-err');
+    err.textContent = 'Password errata. Riprova.';
+    document.getElementById('pwd-input').value = '';
+    setTimeout(() => err.textContent = '', 3000);
+  }
+}
+
+if (sessionStorage.getItem('simo_auth') === '1') {
+  document.getElementById('login-overlay').style.display = 'none';
+  init();
+}
+
+</script>
+</body>
+</html>
